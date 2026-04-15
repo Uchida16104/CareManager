@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>医療・福祉・介護 詳細管理＆AI分析アプリ</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap');
+        body { font-family: 'Inter', 'Noto Sans JP', sans-serif; }
+        .animate-fade-in { animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+    <div id="root"></div>
+
+    <script type="text/javascript">
+        const { useState, useEffect, useCallback } = React;
+        const apiKey = ""; // API key will be injected by the environment
+
+        // Icons definition using Lucide
+        const Icon = ({ name, className = "w-5 h-5" }) => {
+            return React.createElement('i', {
+                'data-lucide': name,
+                className: className
+            });
+        };
+
+        const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+        const fetchAIAnalysis = async (records) => {
+            const systemInstruction = `
+                あなたは医療・福祉・介護事業所のケアマネージャーおよびデータアナリストの専門家AIです。
+                利用者の日々の記録（出欠、服薬、通院、予定）を分析し、以下をMarkdown形式で提案してください。
+                1. 【全体傾向の分析】: データのパターン分析
+                2. 【個別リスクと注意点】: 健康リスクや注意点
+                3. 【今後の指針とケア提案】: 業務改善案や個別の具体的なアクション
+            `;
+            const prompt = `以下のデータを分析してください: ${JSON.stringify(records)}`;
+            
+            let retries = 5;
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            contents: [{ parts: [{ text: prompt }] }],
+                            systemInstruction: { parts: [{ text: systemInstruction }] }
+                        })
+                    });
+                    const data = await response.json();
+                    return data.candidates[0].content.parts[0].text;
+                } catch (e) {
+                    if (i === retries - 1) throw e;
+                    await delay(1000 * Math.pow(2, i));
+                }
+            }
+        };
+
+        const MEDICATION_TIMINGS = [
+            '朝食前', '朝食中', '朝食後', '昼食前', '昼食中', '昼食後', 
+            '夕食前', '夕食中', '夕食後', '眠前', '頓服'
+        ];
+
+        const App = () => {
+            const [activeTab, setActiveTab] = useState('input');
+            const [records, setRecords] = useState([]);
+            const [aiAnalysisResult, setAiAnalysisResult] = useState('');
+            const [isAnalyzing, setIsAnalyzing] = useState(false);
+            const [msg, setMsg] = useState({ text: '', type: '' });
+
+            const [formData, setFormData] = useState({
+                date: new Date().toISOString().split('T')[0],
+                userName: '',
+                attendance: '出席',
+                hospitalVisit: false,
+                checkup: false,
+                medication: {},
+                procedure: false,
+                otherNotes: ''
+            });
+
+            useEffect(() => {
+                lucide.createIcons();
+                if (msg.text) {
+                    const t = setTimeout(() => setMsg({ text: '', type: '' }), 4000);
+                    return () => clearTimeout(t);
+                }
+            }, [msg, activeTab, aiAnalysisResult]);
+
+            const handleSave = (e) => {
+                e.preventDefault();
+                if (!formData.userName) return setMsg({ text: '氏名を入力してください', type: 'error' });
+                setRecords([{ ...formData, id: Date.now() }, ...records]);
+                setFormData({ ...formData, userName: '', otherNotes: '', medication: {} });
+                setMsg({ text: '保存しました', type: 'success' });
+            };
+
+            const runAnalysis = async () => {
+                if (records.length === 0) return setMsg({ text: 'データがありません', type: 'error' });
+                setIsAnalyzing(true);
+                try {
+                    const res = await fetchAIAnalysis(records);
+                    setAiAnalysisResult(res);
+                    setMsg({ text: '分析完了', type: 'success' });
+                } catch (e) {
+                    setMsg({ text: '分析エラーが発生しました', type: 'error' });
+                } finally {
+                    setIsAnalyzing(false);
+                }
+            };
+
+            return React.createElement('div', { className: 'min-h-screen' }, [
+                // Header
+                React.createElement('header', { className: 'bg-white border-b sticky top-0 z-10 px-4 py-4 shadow-sm' }, 
+                    React.createElement('div', { className: 'max-w-5xl mx-auto flex justify-between items-center' }, [
+                        React.createElement('div', { className: 'flex items-center gap-2' }, [
+                            React.createElement(Icon, { name: 'activity', className: 'text-blue-600 w-6 h-6' }),
+                            React.createElement('span', { className: 'font-bold text-xl' }, 'CareManager AI')
+                        ]),
+                        React.createElement('div', { className: 'flex bg-slate-100 p-1 rounded-lg' }, [
+                            ['input', 'plus-circle', '入力'],
+                            ['list', 'list', '履歴'],
+                            ['analysis', 'brain', '分析']
+                        ].map(([id, icon, label]) => 
+                            React.createElement('button', {
+                                onClick: () => setActiveTab(id),
+                                className: `px-4 py-2 rounded-md text-sm font-medium flex items-center gap-2 transition ${activeTab === id ? 'bg-white shadow text-blue-600' : 'text-slate-500 hover:text-slate-700'}`
+                            }, [React.createElement(Icon, { name: icon, className: 'w-4 h-4' }), label])
+                        ))
+                    ])
+                ),
+
+                // Main Content
+                React.createElement('main', { className: 'max-w-4xl mx-auto p-6' }, [
+                    msg.text && React.createElement('div', { className: `mb-4 p-4 rounded-lg flex items-center gap-2 animate-fade-in ${msg.type === 'error' ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}` }, [
+                        React.createElement(Icon, { name: msg.type === 'error' ? 'alert-circle' : 'check-circle' }),
+                        msg.text
+                    ]),
+
+                    activeTab === 'input' && React.createElement('div', { className: 'bg-white p-8 rounded-xl shadow-sm border animate-fade-in' }, [
+                        React.createElement('h2', { className: 'text-2xl font-bold mb-6' }, '記録の新規作成'),
+                        React.createElement('form', { onSubmit: handleSave, className: 'space-y-6' }, [
+                            React.createElement('div', { className: 'grid md:grid-cols-2 gap-4' }, [
+                                React.createElement('div', null, [
+                                    React.createElement('label', { className: 'block text-sm font-medium mb-1' }, '日付'),
+                                    React.createElement('input', { type: 'date', value: formData.date, onChange: e => setFormData({...formData, date: e.target.value}), className: 'w-full p-2 border rounded-md' })
+                                ]),
+                                React.createElement('div', null, [
+                                    React.createElement('label', { className: 'block text-sm font-medium mb-1' }, '氏名'),
+                                    React.createElement('input', { type: 'text', value: formData.userName, onChange: e => setFormData({...formData, userName: e.target.value}), className: 'w-full p-2 border rounded-md', placeholder: '利用者名を入力' })
+                                ])
+                            ]),
+                            React.createElement('div', null, [
+                                React.createElement('label', { className: 'block text-sm font-medium mb-2' }, '出欠状況'),
+                                React.createElement('div', { className: 'flex gap-2' }, ['出席', '欠席', '遅刻', '早退'].map(s => 
+                                    React.createElement('button', {
+                                        type: 'button',
+                                        onClick: () => setFormData({...formData, attendance: s}),
+                                        className: `px-4 py-2 rounded-full border text-sm transition ${formData.attendance === s ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white'}`
+                                    }, s)
+                                ))
+                            ]),
+                            React.createElement('div', { className: 'grid sm:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-lg' }, [
+                                ['hospitalVisit', '通院日'], ['checkup', '検査日'], ['procedure', '役所手続き']
+                            ].map(([id, label]) => 
+                                React.createElement('label', { className: 'flex items-center gap-2 cursor-pointer' }, [
+                                    React.createElement('input', { type: 'checkbox', checked: formData[id], onChange: e => setFormData({...formData, [id]: e.target.checked}) }),
+                                    React.createElement('span', { className: 'text-sm' }, label)
+                                ])
+                            )),
+                            React.createElement('div', null, [
+                                React.createElement('label', { className: 'block text-sm font-medium mb-2' }, '服薬チェック'),
+                                React.createElement('div', { className: 'grid grid-cols-2 sm:grid-cols-4 gap-2' }, MEDICATION_TIMINGS.map(t => 
+                                    React.createElement('label', { className: 'flex items-center gap-2 p-2 border rounded text-xs' }, [
+                                        React.createElement('input', { type: 'checkbox', checked: formData.medication[t] || false, onChange: e => setFormData({...formData, medication: {...formData.medication, [t]: e.target.checked}}) }),
+                                        t
+                                    ])
+                                ))
+                            ]),
+                            React.createElement('button', { type: 'submit', className: 'w-full py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition' }, '保存する')
+                        ])
+                    ]),
+
+                    activeTab === 'list' && React.createElement('div', { className: 'space-y-4 animate-fade-in' }, 
+                        records.length === 0 ? React.createElement('p', { className: 'text-center text-slate-400 py-10' }, 'データがありません') :
+                        records.map(r => React.createElement('div', { className: 'bg-white p-4 rounded-lg shadow-sm border flex justify-between' }, [
+                            React.createElement('div', null, [
+                                React.createElement('div', { className: 'text-xs text-slate-500' }, r.date),
+                                React.createElement('div', { className: 'font-bold' }, r.userName),
+                                React.createElement('div', { className: 'text-xs mt-1 flex gap-1' }, [
+                                    r.hospitalVisit && React.createElement('span', { className: 'text-rose-600' }, '●通院'),
+                                    r.checkup && React.createElement('span', { className: 'text-orange-600' }, '●検査')
+                                ])
+                            ]),
+                            React.createElement('button', { onClick: () => setRecords(records.filter(x => x.id !== r.id)), className: 'text-slate-300 hover:text-red-500' }, React.createElement(Icon, { name: 'trash-2', className: 'w-4 h-4' }))
+                        ]))
+                    ),
+
+                    activeTab === 'analysis' && React.createElement('div', { className: 'bg-white rounded-xl shadow-sm border overflow-hidden animate-fade-in' }, [
+                        React.createElement('div', { className: 'p-6 bg-slate-900 text-white flex justify-between items-center' }, [
+                            React.createElement('div', null, [
+                                React.createElement('h2', { className: 'text-xl font-bold' }, 'AI 分析・指針提案'),
+                                React.createElement('p', { className: 'text-slate-400 text-xs mt-1' }, `${records.length} 件のデータに基づきます`)
+                            ]),
+                            React.createElement('button', { onClick: runAnalysis, disabled: isAnalyzing, className: 'px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg font-bold transition' }, 
+                                isAnalyzing ? '分析中...' : '分析実行'
+                            )
+                        ]),
+                        React.createElement('div', { className: 'p-8 min-h-[300px]' }, 
+                            aiAnalysisResult ? React.createElement('div', { className: 'whitespace-pre-wrap leading-relaxed text-slate-700' }, aiAnalysisResult) :
+                            React.createElement('div', { className: 'flex flex-col items-center justify-center h-full text-slate-300 text-center' }, [
+                                React.createElement(Icon, { name: 'brain', className: 'w-12 h-12 mb-4 opacity-20' }),
+                                React.createElement('p', null, '分析データがありません')
+                            ])
+                        )
+                    ])
+                ])
+            ]);
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(React.createElement(App));
+    </script>
+</body>
+</html>

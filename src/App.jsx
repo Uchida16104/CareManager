@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 
 // APIキーは実行環境から提供されます
-const apiKey = "AQ.Ab8RN6LojeVWgSN1jUB0VK20XoOBvjs1vsLUTN6BEUyzsv4I3A";
+const apiKey = "";
 
 // ユーティリティ: 遅延関数
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));

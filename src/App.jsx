@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 
 // APIキーは実行環境から提供されます
-const apiKey = "";
+const apiKey = "AQ.Ab8RN6LojeVWgSN1jUB0VK20XoOBvjs1vsLUTN6BEUyzsv4I3A";
 
 // ユーティリティ: 遅延関数
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -43,7 +43,7 @@ const fetchAIAnalysis = async (records) => {
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=AQ.Ab8RN6LojeVWgSN1jUB0VK20XoOBvjs1vsLUTN6BEUyzsv4I3A`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`,
         {
           method: 'POST',
           headers: {

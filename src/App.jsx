@@ -43,7 +43,7 @@ const fetchAIAnalysis = async (records) => {
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=AQ.Ab8RN6LojeVWgSN1jUB0VK20XoOBvjs1vsLUTN6BEUyzsv4I3A`,
         {
           method: 'POST',
           headers: {
